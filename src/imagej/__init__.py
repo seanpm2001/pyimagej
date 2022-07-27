@@ -42,6 +42,7 @@ import scyjava as sj
 import xarray as xr
 import imagej.stack as stack
 import imagej.dims as dims
+import imagej.geom as geom
 import subprocess
 import threading
 
@@ -290,6 +291,17 @@ class ImageJPython:
         """
         # todo: convert a dataset to xarray
         return sj.to_python(data)
+
+    def get_geom_manager(self):
+        """EXPERIMENTAL: This method returns an instance of the GeomManager.
+
+        The GeomManager depends on the ROIService. For now it makes sense
+        to initialize the class with the ROIService from here to ensure we
+        are using the same instance of ImageJ.
+
+        :return: Instance of the GeomManager
+        """
+        return geom.GeomManager(self._ij.get("org.scijava.convert.ConvertService"), self._ij.get("net.imagej.roi.ROIService"))
 
     def initialize_numpy_image(self, image) -> np.ndarray:
         """Initialize a NumPy array with zeros and shape of the input image.
