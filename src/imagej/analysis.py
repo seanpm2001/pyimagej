@@ -2,8 +2,8 @@ import scyjava as sj
 
 from pandas import DataFrame
 from collections import defaultdict
-from jpype import JLong
 from functools import lru_cache
+from jpype import JInt
 
 class ObjectCounter:
     def __init__(self, exclude=False, size_filter = True, ij_instance=None):
@@ -13,7 +13,46 @@ class ObjectCounter:
         self.stats = None
         self._ij = ij_instance
         self._centers = []
+        self._regions = []
         self._rawstats = defaultdict(list)
+
+    def filter_labels(self, min_size: int, max_size: int, labelings: "net.imglib2.roi.labeling.ImgLabeling") -> "net.imglib2.roi.labeling.ImgLabeling":
+        """Filter a labelings.
+
+        Apply a size filter (defined by min and max pixel size) to a
+        net.imglib2.roi.labeling.ImgLabeling.
+
+        :param min_size: Miniumum pixel size to filter.
+        :param max_size: Maximum pixel size to filter.
+        :param labelings: ImgLabelings (i.e. the out put of a connected component analysis).
+        :return: A filtered ImgLabeling.
+        """
+        regions = _LabelRegions()(labelings)
+        label_sets = labelings.getMapping().getLabelSets()
+
+        # filter based on min and max size using flex_label_list to iterate on
+        # the first LabelSet is always empty, so skip it.
+        i = len(label_sets) - 1
+        new_index_img = self._ij.op().namespace(_CreateNamespace()).img(labelings.getIndexImg())
+        _ImgUtil().copy(labelings.getIndexImg(), new_index_img)
+
+        while i > 0:
+            region = regions.getLabelRegion(labelings.getMapping().getLabels().toArray()[i - 1])
+            # filter regions based on region size
+            if (region.size() < min_size) or (region.size() > max_size):
+                new_index_img_ra = new_index_img.randomAccess()
+                c = region.localizingCursor()
+                # set regions that are outside min/max boundries to 0
+                while c.hasNext():
+                    c.next()
+                    for d in range(c.ndim):
+                        new_index_img_ra.setPosition(c.getIntPosition(d), d)
+                    new_index_img_ra.get().set(0)
+                # remove label from label_sets
+                label_sets.remove_(JInt(i))
+            i -= 1
+
+        return _ImgLabeling().fromImageAndLabelSets(new_index_img, label_sets)
 
     def label_objects(self, image: "net.imagej.ImgPlus", structuring_element: str):
         """
@@ -56,19 +95,6 @@ class ObjectCounter:
         for region in regions:
             self._centers.append(region.getCenterOfMass())
 
-    def _compute_region_stats(self, image, region: "net.imglib2.roi.labeling.LabelRegions"):
-        samples = _Regions().sample(region, image)
-        self._rawstats["area"].append(self._ij.op().run("stats.size", samples).getRealDouble())
-        self._rawstats["mean"].append(self._ij.op().run("stats.mean", samples).getRealDouble())
-        min_max = self._ij.op().run("stats.minMax", samples)
-        self._rawstats["min"].append(min_max.getA().getRealDouble())
-        self._rawstats["max"].append(min_max.getB().getRealDouble())
-        centroid = self._ij.op().run("geom.centroid", region)
-        self._rawstats["centroid"].append(tuple(centroid.getDoublePosition(d) for d in range(centroid.numDimensions())))
-        self._rawstats["median"].append(self._ij.op().run("stats.median", samples).getRealDouble())
-        self._rawstats["skeness"].append(self._ij.op().run("stats.skewness", samples).getRealDouble())
-        self._rawstats["kurtosis"].append(self._ij.op().run("stats.kurtosis", samples).getRealDouble())
-
     def overlay_center_of_mass(self, image: "net.imagej.ImgPlus"):
         """
         """
@@ -93,8 +119,20 @@ class ObjectCounter:
                     center_ra.get().set(max_value)
                     dy += 1
 
-        stack = _Views().stack(image, center_image)
-        self._ij.ui().show("center of mass", stack)
+        return _Views().stack(image, center_image)
+
+    def _compute_region_stats(self, image, region: "net.imglib2.roi.labeling.LabelRegions"):
+        samples = _Regions().sample(region, image)
+        self._rawstats["area"].append(self._ij.op().run("stats.size", samples).getRealDouble())
+        self._rawstats["mean"].append(self._ij.op().run("stats.mean", samples).getRealDouble())
+        min_max = self._ij.op().run("stats.minMax", samples)
+        self._rawstats["min"].append(min_max.getA().getRealDouble())
+        self._rawstats["max"].append(min_max.getB().getRealDouble())
+        centroid = self._ij.op().run("geom.centroid", region)
+        self._rawstats["centroid"].append(tuple(centroid.getDoublePosition(d) for d in range(centroid.numDimensions())))
+        self._rawstats["median"].append(self._ij.op().run("stats.median", samples).getRealDouble())
+        self._rawstats["skeness"].append(self._ij.op().run("stats.skewness", samples).getRealDouble())
+        self._rawstats["kurtosis"].append(self._ij.op().run("stats.kurtosis", samples).getRealDouble())
 
     def _get_imagej_gateway(self):
         try:
@@ -104,9 +142,18 @@ class ObjectCounter:
         except ImportError:
             print(f"PyImageJ has not been initialized.")
 
+    def _labelings_to_list(self, labelings):
+        regions = _LabelRegions()(labelings)
+        for region in regions:
+            self._regions.append(region)
+
 @lru_cache(maxsize=None)
 def _CreateNamespace():
     return sj.jimport("net.imagej.ops.create.CreateNamespace")
+
+@lru_cache(maxsize=None)
+def _ImgLabeling():
+    return sj.jimport("net.imglib2.roi.labeling.ImgLabeling")
 
 @lru_cache(maxsize=None)
 def _LabelRegions():
@@ -115,6 +162,10 @@ def _LabelRegions():
 @lru_cache(maxsize=None)
 def _RealLocalizable():
     return sj.jimport("net.imglib2.RealLocalizable")
+
+@lru_cache(maxsize=None)
+def _ImgUtil():
+    return sj.jimport("net.imglib2.util.ImgUtil")
 
 @lru_cache(maxsize=None)
 def _Regions():

@@ -42,6 +42,7 @@ import scyjava as sj
 import xarray as xr
 import imagej.stack as stack
 import imagej.dims as dims
+import imagej.analysis
 import subprocess
 import threading
 
