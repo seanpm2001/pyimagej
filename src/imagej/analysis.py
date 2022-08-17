@@ -135,18 +135,18 @@ class ObjectCounter:
         if self._ij == None:
             self._get_imagej_gateway()
 
-    def _compute_region_stats(self, image, region: "net.imglib2.roi.labeling.LabelRegions"):
+    def _compute_region_stats(self, region: "net.imglib2.roi.labeling.LabelRegions", image):
         samples = _Regions().sample(region, image)
-        self._rawstats["area"].append(self._ij.op().run("stats.size", samples).getRealDouble())
-        self._rawstats["mean"].append(self._ij.op().run("stats.mean", samples).getRealDouble())
-        min_max = self._ij.op().run("stats.minMax", samples)
+        self._rawstats["area"].append(self._ij.op().stats().size(samples).getRealDouble())
+        self._rawstats["mean"].append(self._ij.op().stats().mean(samples).getRealDouble())
+        min_max = self._ij.op().stats().minMax(samples)
         self._rawstats["min"].append(min_max.getA().getRealDouble())
         self._rawstats["max"].append(min_max.getB().getRealDouble())
-        centroid = self._ij.op().run("geom.centroid", region)
+        centroid = self._ij.op().geom().centroid(region)
         self._rawstats["centroid"].append(tuple(centroid.getDoublePosition(d) for d in range(centroid.numDimensions())))
-        self._rawstats["median"].append(self._ij.op().run("stats.median", samples).getRealDouble())
-        self._rawstats["skeness"].append(self._ij.op().run("stats.skewness", samples).getRealDouble())
-        self._rawstats["kurtosis"].append(self._ij.op().run("stats.kurtosis", samples).getRealDouble())
+        self._rawstats["median"].append(self._ij.op().stats().median(samples).getRealDouble())
+        self._rawstats["skewness"].append(self._ij.op().stats().skewness(samples).getRealDouble())
+        self._rawstats["kurtosis"].append(self._ij.op().stats().kurtosis(samples).getRealDouble())
 
     def _get_imagej_gateway(self):
         try:
