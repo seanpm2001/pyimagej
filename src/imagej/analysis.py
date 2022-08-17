@@ -16,7 +16,7 @@ class ObjectCounter:
         self._regions = []
         self._rawstats = defaultdict(list)
 
-    def filter_labels(self, min_size: int, max_size: int, labelings: "net.imglib2.roi.labeling.ImgLabeling") -> "net.imglib2.roi.labeling.ImgLabeling":
+    def filter_labels(self, min_size: int, max_size: int, labelings: "net.imglib2.roi.labeling.ImgLabeling", structuring_element: str) -> "net.imglib2.roi.labeling.ImgLabeling":
         """Filter a labelings.
 
         Apply a size filter (defined by min and max pixel size) to a
@@ -27,12 +27,12 @@ class ObjectCounter:
         :param labelings: ImgLabelings (i.e. the out put of a connected component analysis).
         :return: A filtered ImgLabeling.
         """
+        self._check_imagej_gateway()
         regions = _LabelRegions()(labelings)
-        label_sets = labelings.getMapping().getLabelSets()
 
         # filter based on min and max size using flex_label_list to iterate on
         # the first LabelSet is always empty, so skip it.
-        i = len(label_sets) - 1
+        i = len(labelings.getMapping().getLabelSets()) - 1
         new_index_img = self._ij.op().namespace(_CreateNamespace()).img(labelings.getIndexImg())
         _ImgUtil().copy(labelings.getIndexImg(), new_index_img)
 
@@ -48,11 +48,20 @@ class ObjectCounter:
                     for d in range(c.ndim):
                         new_index_img_ra.setPosition(c.getIntPosition(d), d)
                     new_index_img_ra.get().set(0)
-                # remove label from label_sets
-                label_sets.remove_(JInt(i))
+            else:
+                c = region.localizingCursor()
+                # set region kept regions to 255
+                while c.hasNext():
+                    c.next()
+                    for d in range(c.ndim):
+                        new_index_img_ra.setPosition(c.getIntPosition(d), d)
+                    new_index_img_ra.get().set(255)
             i -= 1
 
-        return _ImgLabeling().fromImageAndLabelSets(new_index_img, label_sets)
+        # convert index image to 8-bit and perform CCA again
+        new_index_img = self._ij.op().convert().uint8(new_index_img)
+
+        return self._run_cca(new_index_img, structuring_element)
 
     def label_objects(self, image: "net.imagej.ImgPlus", structuring_element: str):
         """
@@ -68,19 +77,8 @@ class ObjectCounter:
             * "eight" -
                 Select eight connected structuring element.
         """
-        # check if PyImageJ is running
-        if self._ij == None:
-            self._get_imagej_gateway()
-
         # run CCA
-        if structuring_element.lower() == "four":
-            labeling = self._ij.op().labeling().cca(image, _StructuringElement().FOUR_CONNECTED)
-        elif structuring_element.lower() == "eight":
-            labeling = self._ij.op().labeling().cca(image, _StructuringElement().EIGHT_CONNECTED)
-        else:
-            raise ValueError(f"\"{structuring_element}\" is not a valid StructuringElement. Use \"four\" or \"eight\".")
-
-        return labeling
+        return self._run_cca(image, structuring_element)
 
     def compute_stats(self, image, labeling: "net.imglib2.roi.labeling.ImgLabeling") -> DataFrame:
         regions = _LabelRegions()(labeling)
@@ -120,6 +118,22 @@ class ObjectCounter:
                     dy += 1
 
         return _Views().stack(image, center_image)
+
+    def _run_cca(self, image, se):
+        self._check_imagej_gateway()
+        if se.lower() == "four":
+            labeling = self._ij.op().labeling().cca(image, _StructuringElement().FOUR_CONNECTED)
+        elif se.lower() == "eight":
+            labeling = self._ij.op().labeling().cca(image, _StructuringElement().EIGHT_CONNECTED)
+        else:
+            raise ValueError(f"\"{se}\" is not a valid StructuringElement. Use \"four\" or \"eight\".")
+
+        return labeling
+
+    def _check_imagej_gateway(self):
+        # check if PyImageJ is running
+        if self._ij == None:
+            self._get_imagej_gateway()
 
     def _compute_region_stats(self, image, region: "net.imglib2.roi.labeling.LabelRegions"):
         samples = _Regions().sample(region, image)
