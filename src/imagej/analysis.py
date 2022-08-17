@@ -34,13 +34,13 @@ class ObjectCounter:
         # the first LabelSet is always empty, so skip it.
         i = len(labelings.getMapping().getLabelSets()) - 1
         new_index_img = self._ij.op().namespace(_CreateNamespace()).img(labelings.getIndexImg())
+        new_index_img_ra = new_index_img.randomAccess()
         _ImgUtil().copy(labelings.getIndexImg(), new_index_img)
 
         while i > 0:
             region = regions.getLabelRegion(labelings.getMapping().getLabels().toArray()[i - 1])
             # filter regions based on region size
             if (region.size() < min_size) or (region.size() > max_size):
-                new_index_img_ra = new_index_img.randomAccess()
                 c = region.localizingCursor()
                 # set regions that are outside min/max boundries to 0
                 while c.hasNext():
