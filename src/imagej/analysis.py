@@ -39,12 +39,18 @@ class ObjectCounter:
         # get imagej gateway
         self._check_imagej_gateway()
 
-        # filter based on min and max size using flex_label_list to iterate on
-        # the first LabelSet is always empty, so skip it.
-        i = len(labelings.getMapping().getLabelSets()) - 1
-        new_index_img = self._ij.op().namespace(_CreateNamespace()).img(labelings.getIndexImg())
+        # set minimum and maximum default size
+        if min_size == None:
+            min_size = 0
+        if max_size == None:
+            max_size = int(labeling.getIndexImg().size())
+
+        # create new index image and setup random access
+        regions = _LabelRegions()(labeling)
+        i = len(labeling.getMapping().getLabelSets()) - 1
+        new_index_img = self._ij.op().namespace(_CreateNamespace()).img(labeling.getIndexImg())
+        _ImgUtil().copy(labeling.getIndexImg(), new_index_img)
         new_index_img_ra = new_index_img.randomAccess()
-        _ImgUtil().copy(labelings.getIndexImg(), new_index_img)
 
         # filter regions based on size, rejected region pixels are set to 0 while included are set to 255
         while i > 0:
