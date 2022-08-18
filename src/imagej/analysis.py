@@ -3,7 +3,6 @@ import scyjava as sj
 from pandas import DataFrame
 from collections import defaultdict
 from functools import lru_cache
-from jpype import JInt
 
 class ObjectCounter:
     def __init__(self, exclude=False, size_filter = True, ij_instance=None):
@@ -16,19 +15,29 @@ class ObjectCounter:
         self._regions = []
         self._rawstats = defaultdict(list)
 
-    def filter_labels(self, min_size: int, max_size: int, labelings: "net.imglib2.roi.labeling.ImgLabeling", structuring_element: str) -> "net.imglib2.roi.labeling.ImgLabeling":
-        """Filter a labelings.
+    def filter_labeling(self, labeling: "net.imglib2.roi.labeling.ImgLabeling", structuring_element: str, min_size: int = None, max_size: int = None) -> "net.imglib2.roi.labeling.ImgLabeling":
+        """Filter labels from an ImgLabeling using region pixel size.
 
-        Apply a size filter (defined by min and max pixel size) to a
-        net.imglib2.roi.labeling.ImgLabeling.
+        Apply a pixel size filter (defined by min and max) to an input ImgLabeling. Use the same
+        structuring_element (i.e. "four" or "eight") used to generate the ImgLabling to filter
+        labels.
 
-        :param min_size: Miniumum pixel size to filter.
-        :param max_size: Maximum pixel size to filter.
-        :param labelings: ImgLabelings (i.e. the out put of a connected component analysis).
+        :param labeling: ImgLabelings (i.e. the out put of a connected component analysis).
+        :param structuring_element: Specify how objects are considered connected.
+
+            Options include:
+
+            * "four" -
+                Select four connected structuring element.
+            * "eight" -
+                Select eight connected structuring element.
+
+        :param min_size: Miniumum pixel size to filter (default=0).
+        :param max_size: Maximum pixel size to filter (default=total number of pixels in image).
         :return: A filtered ImgLabeling.
         """
+        # get imagej gateway
         self._check_imagej_gateway()
-        regions = _LabelRegions()(labelings)
 
         # filter based on min and max size using flex_label_list to iterate on
         # the first LabelSet is always empty, so skip it.
@@ -37,12 +46,13 @@ class ObjectCounter:
         new_index_img_ra = new_index_img.randomAccess()
         _ImgUtil().copy(labelings.getIndexImg(), new_index_img)
 
+        # filter regions based on size, rejected region pixels are set to 0 while included are set to 255
         while i > 0:
-            region = regions.getLabelRegion(labelings.getMapping().getLabels().toArray()[i - 1])
+            region = regions.getLabelRegion(labeling.getMapping().getLabels().toArray()[i - 1])
             # filter regions based on region size
             if (region.size() < min_size) or (region.size() > max_size):
                 c = region.localizingCursor()
-                # set regions that are outside min/max boundries to 0
+                # set excluded regions to 0
                 while c.hasNext():
                     c.next()
                     for d in range(c.ndim):
@@ -50,7 +60,7 @@ class ObjectCounter:
                     new_index_img_ra.get().set(0)
             else:
                 c = region.localizingCursor()
-                # set region kept regions to 255
+                # set included regions to 255
                 while c.hasNext():
                     c.next()
                     for d in range(c.ndim):
@@ -63,12 +73,12 @@ class ObjectCounter:
 
         return self._run_cca(new_index_img, structuring_element)
 
-    def label_objects(self, image: "net.imagej.ImgPlus", structuring_element: str):
+    def label_objects(self, image: "net.imagej.ImgPlus", structuring_element: str) -> "net.imglib2.roi.labeling.ImgLabeling":
         """
-        Find objects in an image using ImageJ Ops CCA.
+        Find objects in an image using ImageJ Ops Connected Component Analysis (CCA).
         
         :param image: 8-bit binary image
-        :param structuring_element: Specify how are considered connected.
+        :param structuring_element: Specify how objects are considered connected.
 
             Options include:
 
