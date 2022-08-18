@@ -92,9 +92,54 @@ class ObjectCounter:
                 Select four connected structuring element.
             * "eight" -
                 Select eight connected structuring element.
+        :return: An ImgLabeling.
         """
         # run CCA
         return self._run_cca(image, structuring_element)
+
+    def labe_objects_watershed(self, image: "net.imagej.ImgPlus", structuring_element:str) -> "net.imglib2.roi.labeling.ImgLabeling":
+        """
+        Find objects using ImageJ Ops watershed
+
+        :param image: 8-bit binary image
+        :param structuring_element: Specify how objects are considered connected.
+
+            Options include:
+
+            * "four" -
+                Select four connected structuring element.
+            * "eight" -
+                Select eight connected structuring element.
+        :return: An ImgLabeling.
+        """
+        return self._run_watershed(image, structuring_element)
+
+
+    def labels_to_binary_mask(self, labeling: "net.imglib2.roi.labeling.ImgLabeling"):
+        """Convert labels into binary images.
+
+        Convert the IndexImg of a ImgLabeling into an 8-bit binary mask.
+
+        :param labeling: ImgLabelings (i.e. the out put of a connected component analysis).
+        :return: 8-bit binary mask.
+        """
+        regions = _LabelRegions()(labeling)
+        i = len(labeling.getMapping().getLabelSets()) - 1
+        result = self._ij.op().namespace(_CreateNamespace()).img(labeling.getIndexImg())
+        _ImgUtil().copy(labeling.getIndexImg(), result)
+        result_ra = result.randomAccess()
+
+        while i > 0:
+            region = regions.getLabelRegion(labeling.getMapping().getLabels().toArray()[i - 1])
+            c = region.localizingCursor()
+            while c.hasNext():
+                c.next()
+                for d in range(c.ndim):
+                    result_ra.setPosition(c.getIntPosition(d), d)
+                result_ra.get().set(255)
+            i -= 1
+
+        return self._ij.op().convert().uint8(result)
 
     def compute_stats(self, image, labeling: "net.imglib2.roi.labeling.ImgLabeling") -> DataFrame:
         regions = _LabelRegions()(labeling)
@@ -141,6 +186,17 @@ class ObjectCounter:
             labeling = self._ij.op().labeling().cca(image, _StructuringElement().FOUR_CONNECTED)
         elif se.lower() == "eight":
             labeling = self._ij.op().labeling().cca(image, _StructuringElement().EIGHT_CONNECTED)
+        else:
+            raise ValueError(f"\"{se}\" is not a valid StructuringElement. Use \"four\" or \"eight\".")
+
+        return labeling
+
+    def _run_watershed(self, image, se):
+        self._check_imagej_gateway()
+        if se.lower() == "four":
+            labeling = self._ij.op().image().watershed(image, False, False)
+        if se.lower() == "eight":
+            labeling = self._ij.op().image().watershed(image, True, False)
         else:
             raise ValueError(f"\"{se}\" is not a valid StructuringElement. Use \"four\" or \"eight\".")
 
