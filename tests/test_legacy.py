@@ -31,13 +31,13 @@ def ensure_legacy_enabled(ij):
 # -- Tests --
 
 
-def test_convert_imageplus_to_python(ij_fixture):
-    ensure_legacy_enabled(ij_fixture)
+def test_convert_imageplus_to_python(ij):
+    ensure_legacy_enabled(ij)
 
     w = 30
     h = 20
-    imp = ij_fixture.IJ.createImage("Ramp", "16-bit ramp", w, h, 2, 3, 5)
-    xarr = ij_fixture.py.from_java(imp)
+    imp = ij.IJ.createImage("Ramp", "16-bit ramp", w, h, 2, 3, 5)
+    xarr = ij.py.from_java(imp)
     assert xarr.dims == ("t", "pln", "row", "col", "ch")
     assert xarr.shape == (5, 3, h, w, 2)
 
@@ -58,11 +58,11 @@ def test_convert_imageplus_to_python(ij_fixture):
                 assert all((plane == xarr[t, z, :, :, c]).data.flatten())
 
 
-def test_run_plugin(ij_fixture):
-    ensure_legacy_enabled(ij_fixture)
+def test_run_plugin(ij):
+    ensure_legacy_enabled(ij)
 
-    ramp = ij_fixture.IJ.createImage("Tile1", "8-bit ramp", 10, 10, 1)
-    ij_fixture.py.run_plugin("Gaussian Blur...", args={"sigma": 3}, imp=ramp)
+    ramp = ij.IJ.createImage("Tile1", "8-bit ramp", 10, 10, 1)
+    ij.py.run_plugin("Gaussian Blur...", args={"sigma": 3}, imp=ramp)
     values = [ramp.getPixel(x, y)[0] for x in range(10) for y in range(10)]
     # fmt: off
     assert values == [
@@ -80,45 +80,45 @@ def test_run_plugin(ij_fixture):
     # fmt: on
 
 
-def test_get_imageplus_synchronizes_from_imagej_to_imagej2(ij_fixture, arr):
-    ensure_legacy_enabled(ij_fixture)
-    ensure_gui_available(ij_fixture)
+def test_get_imageplus_synchronizes_from_imagej_to_imagej2(ij, arr):
+    ensure_legacy_enabled(ij)
+    ensure_gui_available(ij)
 
     original = arr[0, 0]
-    ds = ij_fixture.py.to_java(arr)
-    ij_fixture.ui().show(ds)
+    ds = ij.py.to_java(arr)
+    ij.ui().show(ds)
     macro = """run("Add...", "value=5");"""
-    ij_fixture.py.run_macro(macro)
+    ij.py.run_macro(macro)
 
     assert arr[0, 0] == original + 5
 
 
-def test_synchronize_from_imagej_to_numpy(ij_fixture, arr):
-    ensure_legacy_enabled(ij_fixture)
-    ensure_gui_available(ij_fixture)
+def test_synchronize_from_imagej_to_numpy(ij, arr):
+    ensure_legacy_enabled(ij)
+    ensure_gui_available(ij)
 
     original = arr[0, 0]
-    ds = ij_fixture.py.to_dataset(arr)
-    ij_fixture.ui().show(ds)
-    imp = ij_fixture.py.active_imageplus()
+    ds = ij.py.to_dataset(arr)
+    ij.ui().show(ds)
+    imp = ij.py.active_imageplus()
     imp.getProcessor().add(5)
-    ij_fixture.py.sync_image(imp)
+    ij.py.sync_image(imp)
 
     assert arr[0, 0] == original + 5
 
 
-def test_window_to_numpy_converts_active_image_to_xarray(ij_fixture, arr):
-    ensure_legacy_enabled(ij_fixture)
-    ensure_gui_available(ij_fixture)
+def test_window_to_numpy_converts_active_image_to_xarray(ij, arr):
+    ensure_legacy_enabled(ij)
+    ensure_gui_available(ij)
 
-    ds = ij_fixture.py.to_dataset(arr)
-    ij_fixture.ui().show(ds)
-    new_arr = ij_fixture.py.active_xarray()
+    ds = ij.py.to_dataset(arr)
+    ij.ui().show(ds)
+    new_arr = ij.py.active_xarray()
     assert (arr == new_arr.values).all
 
 
-def test_functions_throw_warning_if_legacy_not_enabled(ij_fixture):
-    ensure_legacy_disabled(ij_fixture)
+def test_functions_throw_warning_if_legacy_not_enabled(ij):
+    ensure_legacy_disabled(ij)
 
     with pytest.raises(ImportError):
-        ij_fixture.py.active_imageplus()
+        ij.py.active_imageplus()
