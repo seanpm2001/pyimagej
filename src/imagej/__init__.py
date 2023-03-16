@@ -1448,7 +1448,7 @@ def _create_jvm(
         sj.config.endpoints.append("org.scijava:scijava-config:MANAGED")
 
     # Add additional ImageJ endpoints specific to PyImageJ.
-    sj.config.endpoints.append("io.scif:scifio-labeling:0.3.1")
+    sj.config.endpoints.append("io.scif:scifio-labeling:MANAGED")
 
     # Restore any pre-existing endpoints, after ImageJ2's.
     sj.config.endpoints.extend(original_endpoints)
