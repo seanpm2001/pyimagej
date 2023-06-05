@@ -4,9 +4,9 @@ dir=$(dirname "$0")
 cd "$dir/.."
 
 modes="
-| Testing ImageJ2 + original ImageJ |--legacy=true
-|    Testing ImageJ2 standalone     |--legacy=false
-|  Testing Fiji Is Just ImageJ(2)   |--ij=sc.fiji:fiji
+| Testing ImageJ2 + original ImageJ |--legacy=true --ij=net.imagej:imagej+net.imagej:imagej-ops:0.49.1
+|    Testing ImageJ2 standalone     |--legacy=false --ij=net.imagej:imagej+net.imagej:imagej-ops:0.49.1
+|  Testing Fiji Is Just ImageJ(2)   |--ij=sc.fiji:fiji+net.imagej:imagej-ops:0.49.1
 "
 
 echo "$modes" | while read mode
