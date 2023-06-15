@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import scyjava as sj
 import xarray as xr
-from jpype import JArray, JLong
+from jpype import JLong
 
 import imagej.dims as dims
 import imagej.images as images
@@ -293,8 +293,7 @@ def test_dataset_converts_to_xarray(ij_fixture):
 
 def test_bittype_img_to_ndarray(ij_fixture):
     ArrayImgs = sj.jimport("net.imglib2.img.array.ArrayImgs")
-    dims = JArray(JLong)(3)
-    dims[:] = [10, 10, 10]
+    dims = JLong[:] @ [10, 10, 10]
     j_img = ArrayImgs.bits(dims)
     p_img = ij_fixture.py.from_java(j_img)
     assert p_img.dtype == np.bool_
