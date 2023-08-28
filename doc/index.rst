@@ -34,6 +34,7 @@ scikit-image, CellProfiler, OpenCV, ITK and many more.
 
    Blob detection (interactive) <examples/blob_interactive.rst>
    Blob detection (headless) <examples/blob_xvfb.rst>
+   Cellpose/StarDist Segmentation <Cellpose-StarDist-Segmentation>
    CellProfiler <cellprofiler/README>
    Classic Segmentation <Classic-Segmentation>
    Puncta Segmentation <Puncta-Segmentation>
